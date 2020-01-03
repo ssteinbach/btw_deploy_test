@@ -1,0 +1,21 @@
+const TRANSITION_DURATION = 120
+
+camera_update_frame(PLAYER.pos)
+draw_all()
+
+if modeFrames < TRANSITION_DURATION:
+    resetTransform()
+    let color = lerp(
+        rgba(0,0,0,0),
+        rgba(0.986,0,0,1),
+        smootherstep(0,1,modeFrames/TRANSITION_DURATION)
+    )
+    drawCornerRect(
+        xy(0,0),
+        screenSize,
+        color, 
+        nil,
+        100
+    )
+else if modeFrames < TRANSITION_DURATION + TRANSITION_DURATION/2:
+    setMode(failed, "transition over")

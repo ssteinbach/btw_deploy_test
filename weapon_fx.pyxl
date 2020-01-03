@@ -1,0 +1,65 @@
+// these are particles that do not affect the actual game play
+let particles = []
+
+def particle_update():
+    const PARTICLE_LAYER = 3
+    for i < size(particles):
+        const p = particles[i]
+
+        let psize = p.size
+        if psize == nil:
+            psize = xy(2.5, 2.5)
+        let p_layer = p.z
+        if p_layer == nil:
+            p_layer = PARTICLE_LAYER
+        if p.sprite:
+            drawSprite(p)
+        if p.spin:
+            p.angle += p.spin
+        else:
+            drawCornerRect(p.pos, 
+                psize, 
+                p.color, 
+                nil, 
+                p_layer
+            )
+
+        p.pos += p.vel
+        if p.color and p.lifetime <= 10:
+            p.color.a *= 95%
+        p.lifetime--
+        if p.lifetime <= 0:
+            fastRemoveKey(particles, i)
+            i--
+
+def weapon_fx_splatter(hitLocation, splatterDir):
+    const SPLATTER_ANGLE = 30deg
+    const inTh = atan(splatterDir.y, splatterDir.x)
+    for i < 15:
+        const th = inTh + SPLATTER_ANGLE * (0.5 - rnd())
+        const speed = (1 - 0.5 * rnd()) * 2
+        const color = rgba(
+            (95% - 30% * rnd()),
+            20% + 10% * rnd(),
+            20% + 30% * rnd(),
+            (70% - 30% * rnd()))
+        const vel = speed * xy(cos th, sin th)
+
+        push(particles, { 
+            pos: hitLocation + 0.5*vel,
+            vel: vel,
+            lifetime: 20, 
+            color: color,
+        })
+
+def weapon_fx_flash(ent, duration):
+    def damage_flash(framesLeft, lifetime):
+        if floor(framesLeft/5) mod 2 == 0:
+            ent.spriteOverrideColor = rgb(1, 1, 1)
+        else:
+            ent.spriteOverrideColor = nil
+
+    def damage_flash_end():
+        ent.spriteOverrideColor = nil
+        
+    addFrameHook(damage_flash, damage_flash_end, duration)

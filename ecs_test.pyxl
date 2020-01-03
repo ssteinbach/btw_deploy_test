@@ -1,0 +1,32 @@
+init
+───────────────────────────────────────────────────────────
+let entities = []
+let player_ent = makeEntity(
+    {
+        pos:xy(0, 0),
+        size:xy(10, 10),
+        shape:"rect",
+        density:1,
+        color:rgb(0,1,0),
+    }
+)
+push(entities, player_ent)
+setTransform(screenSize/2)
+
+// component system
+let components = {}
+def make_component(name, constructor):
+    pass
+def add_component(ent, component_name, arg_map):
+    pass
+
+//
+//
+
+frame
+───────────────────────────────────────────────────────────
+for en in entities:
+    if en.shape != "sprite":
+        drawRect(en.pos - en.size/2, en.size, en.color)
+
+
