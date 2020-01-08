@@ -1,0 +1,356 @@
+// just a global debug string people can write into
+let debug_string = ""
+
+// in pixels
+// const PLAYER_MAX_SPEED = 2.0
+const PLAYER_MIN_SPEED = 0.05
+const PLAYER_ACCEL = 160
+let ARENA_OFFSET = screenSize / 2
+
+const DUST_LAYER = 1
+
+def player_dies(player_ent):
+    setMode(dead_outro, "player died")
+
+def make_collider(offset, scale):
+    return makeEntity({ posInParent: offset, size:scale, shape:"rect" })
+
+// player hierarchy is pretty complicated to allow sword swinging
+def make_player():
+    let player_result = makeEntity(
+        {
+            pos:xy(0,0),
+            sprite:player_sprite[3][1],
+            holding:nil,
+            scale:xy(2, 2),
+            // default orientation
+            orientation:"LEFT",
+            z:2,
+            health:20,
+            max_health:20,
+            hit_fn: hit_player,
+            kill:player_dies,
+            invulnerable: false,
+            forward_dir:xy(-1,0),
+        },
+        {
+            collider: make_collider(xy(0,0), xy(7,7)),
+            movement_collider: make_collider(xy(0,6), xy(8,5)),
+            orientation_pivot: makeEntity(
+                {},
+                {
+                    hand:makeEntity({}),
+                    collider:makeEntity({}),
+                }
+            )
+        }
+    )
+    let sword_result = makeEntity(
+        {
+            // posInParent:transformSpriteToEntity(player_ent, xy(-3, 5)),
+            posInParent:xy(-player_result.sprite.size.x/2-1, 0),
+            sprite:dawnlike_sprite[31][42],
+            hit_region:[
+                xy(-dawnlike_sprite[31][42].size.x/2, 0),
+                xy(30, 16)
+            ],
+            rotateInParent:  true,
+            scaleWithParent: true,
+            scaleInParent: xy(1,1),
+            current_damage: 4,
+            damage: 4,
+        }
+    )
+    // Make the sword a child of the player
+    player_result.orientation_pivot.collider.posInParent=sword_result.hit_region[0]
+    player_result.orientation_pivot.collider.size=sword_result.hit_region[1]
+    player_result.weapon_collider = player_result.orientation_pivot.collider
+    entityAddChild(player_result.orientation_pivot.hand, sword_result)
+    player_result.hand = player_result.orientation_pivot.hand
+    player_result.holding = sword_result
+    player_result.sword = sword_result
+    return player_result
+
+let player_ent = nil
+let sword = nil
+
+def hit_player(part):
+    shake_cam(30)
+
+const PLAYER_ORIENTATION_MAP = {
+    //name    (sprite             , xdir, angle,       swordz  dir)
+    "LEFT"  : [1,    1,     0,       10, xy(-1,0)],
+    "RIGHT" : [2,   -1,     180deg,  -1, xy(1,0)],
+    "UP"    : [3,    1,    -90deg,   -1, xy(0,-1)],
+    "DOWN"  : [0,    1,    90deg,    10, xy(0,1)],
+}
+
+def apply_orientation(player_ent, orientation):
+    const map_val = PLAYER_ORIENTATION_MAP[orientation]
+    player_ent.orientation = orientation
+    player_ent.sprite = player_sprite[floor(modeFrames/8) mod 4][map_val[0]]
+    player_ent.orientation_pivot.scale.x = map_val[1]
+    player_ent.orientation_pivot.angleInParent = map_val[2]
+    player_ent.sword.zInParent = map_val[3]
+    player_ent.forward_dir = map_val[4]
+
+
+
+// player controls:
+//    -- swing should be dash + swing
+//    -- acceleratiton on basic movement
+//    -- other button is dash backwards + shield (forward)
+
+const player_size = player_sprite[0][0].size
+
+def dust_root_player(player_ent, offset_sign):
+    with pos in player_ent:
+        return (
+            pos
+            +xy(0, player_sprite[0][0].size.y/2) 
+            + xy(player_size.x/4, 0) * offset_sign
+        )
+
+def add_dust_puffs_walking(player_ent):
+    if (
+            joy.xx != 0
+            or joy.yy != 0
+            // so that there is a bit of it as the player goes
+            or modeFrames mod 15 == 0
+    ):
+        let offset_sign = 1
+
+        if modeFrames mod 2 == 0:
+            offset_sign = -1
+
+        // set the root of the dust based on the player_sprite  
+        let dust_root = dust_root_player(player_ent, offset_sign)
+
+        push(
+            particles,
+            {
+                pos:dust_root,
+                vel:-player_ent.vel/500 - xy(0, 0.15),
+                lifetime:30,
+                size:2*dust_bigSprite[0][0].size,
+                scale:xy(2,2),
+                z:DUST_LAYER,
+                sprite:dust_bigSprite[0][0],
+            }
+        )
+
+        // lil dust puff just to sell it
+        push(
+            particles,
+            {
+                pos:dust_root + 6*player_ent.vel + xy(0, 4),
+                vel:-player_ent.vel/500 - xy(0, 0.15),
+                lifetime:10,
+                size:2*dust_bigSprite[0][0].size,
+                z:DUST_LAYER,
+                scale:xy(2,2),
+                sprite:dust_bigSprite[0][0],
+            }
+        )
+
+def player_input(player_ent):
+    let taking_input = not player_ent.input_locked
+
+    // currently no acceleration
+    with pos, vel in player_ent:
+        if taking_input:
+            vel = PLAYER_MAX_SPEED*xy(joy.x, joy.y)
+
+        let lastPos = clone(pos)
+        entitySimulate(player_ent, 1)
+        entityUpdateChildren(player_ent)
+        pos = get_collide_pos(player_ent, lastPos)
+        entityUpdateChildren(player_ent)
+
+    const am_moving = not equivalent(xy(sign(joy.x), sign(joy.y)), xy(0, 0))
+    if am_moving:
+        player_ent.am_moving = modeFrames
+
+    if taking_input and not equivalent(xy(sign(joy.x), sign(joy.y)), xy(0, 0)):
+        add_dust_puffs_walking(player_ent)
+
+    if joy.x > 0:
+        apply_orientation(player_ent, "RIGHT")
+    else if joy.x < 0:
+        apply_orientation(player_ent, "LEFT")
+    else if joy.y < 0:
+        apply_orientation(player_ent, "UP")
+    else if joy.y > 0:
+        apply_orientation(player_ent, "DOWN")
+    else:
+        // animation comes to a rest after stopping your motion
+        let post_move_time = modeFrames - player_ent.am_moving 
+        if (post_move_time < 60):
+            apply_orientation(player_ent, player_ent.orientation)
+            if (floor(modeFrames/8) mod 4) == 0 and post_move_time > 10:
+                player_ent.am_moving = 0
+
+    if joy.aa:
+        lock_player_input(player_ent, 7)
+        sword_swing(player_ent)
+    if joy.bb:
+        lunge(player_ent)
+
+
+def lock_player_input(player_ent, dur):
+    player_ent.input_locked = true
+    def unlunge():
+        player_ent.input_locked = nil
+    addFrameHook(nil, unlunge, dur)
+
+def lunge(player_ent):
+    // lunge duration
+    lock_player_input(player_ent, 10)
+
+    player_ent.vel += PLAYER_MAX_SPEED * 2.0 * player_ent.forward_dir
+
+    let dust_root = dust_root_player(player_ent, 1)
+
+    // add dust
+    for i<10:
+        push(
+            particles,
+            {
+                pos:dust_root + 5 * rndDir2D(),
+                vel:-0.5*player_ent.forward_dir - xy(0, 0.15),
+                lifetime:27+i,
+                size:2*dust_bigSprite[0][0].size,
+                scale:xy(2,2),
+                z:DUST_LAYER,
+                sprite:dust_bigSprite[0][0],
+            }
+        )
+
+// given an entity and it's previous position, see if
+// there was a collision with the arena.  Returns
+// the position of the entity if we were to respect
+// those collisions.
+// 
+// XXX: this has a bug that has to do with the fact that it doesn't have a 
+//      notion of the surface angle its bumping against, so it sometimes
+//      reverses both directions when just one would do the trick.  To repro
+//      this bump against the top wall of the arena and jam on the dash button
+//      you'll see it reflect both x and y instead of just y.
+def get_collide_pos(ent, lastPos):
+    // compute the amount it moved this step
+    const delta = ent.pos - lastPos
+
+    const currFootprint = clone(get_footprint(ent))
+    
+    let result_displacement = xy(0,0)
+
+    if (
+            delta.x 
+            and (
+                collide_map_rect(currFootprint.pos, currFootprint.size)
+                or collide_enemy_rect(currFootprint.pos, currFootprint.size, ent)
+            )
+    ):
+        result_displacement.x = -delta.x
+        ent.vel.x *= -1
+
+    // if we've already fixed it by reversing the x movement, apply the 
+    // correction for the y test
+    currFootprint.pos += result_displacement
+    if (
+            delta.y 
+            and (
+                collide_map_rect(currFootprint.pos, currFootprint.size)
+                or collide_enemy_rect(currFootprint.pos, currFootprint.size, ent)
+            )
+    ):
+        result_displacement.y = -delta.y
+        ent.vel.y *= -1
+
+    return ent.pos + result_displacement
+
+// @TODO: This should become a child entity, it takes care of all this math
+//        for us
+def get_footprint(ent):
+    if (ent.movement_collider):
+        return clone(ent.movement_collider)
+    
+    const footprint_percent = 25%
+    return {
+        pos: ent.pos + ent.scale*xy(0, 55% - footprint_percent/2)*ent.size,
+        size: ent.scale*ent.size * xy(1, footprint_percent),
+    }
+
+// @TODO: Replace map with sprites and colliders
+def collide_map_rect(rect_center, rect_size):
+    const hSize = rect_size / 2
+    const rect_min = rect_center - hSize
+    const rect_max = rect_center + hSize
+
+    const mapCoord_min = floor((rect_min + ARENA_OFFSET) / arena.spriteSize)
+    const mapCoord_max = floor((rect_max + ARENA_OFFSET) / arena.spriteSize)
+    for mapCoord_min.y <= mapY <= mapCoord_max.y:
+        for mapCoord_min.x <= mapX <= mapCoord_max.x:
+            if arena_sprite_is_wall(
+                    getMapSprite(arena, xy(mapX, mapY))):
+                return true
+    return false
+
+def collide_enemy_rect(rect_center, rect_size, skip_en):
+    let collider = {
+        pos: rect_center,
+        shape:"rect",
+        angle:0,
+        // not sure why this is 2x
+        size:2*rect_size,
+    }
+
+    for en in enemies:
+        if (
+                (
+                    // make sure the thing is both collidable and not this
+                    skip_en != en 
+                    and en.collidable != nil
+
+                ) and (
+                    (
+                        en.movement_collider 
+                        and overlaps(en.movement_collider, collider)
+                    )
+                    or (
+                        en.movement_collider == nil
+                        and overlaps(en, collider)
+                    )
+                )
+        ):
+            return en
+
+    return false
+
+
+def arena_sprite_is_wall(s):
+    // make sure s.spriteSheet == dawnlike_level
+    return s and s.tileIndex.y <= 12
+
+def draw_shadow(ent):
+    const footPrint = get_footprint(ent)
+
+    const drawWithSprite = true
+    if drawWithSprite:
+        const s = dawnlike_sprite[1][33]
+        drawSprite({
+            sprite: s,
+            pos: footPrint.pos,
+            scale: xy(footPrint.size.x / s.size.x, 1),
+            overrideColor: rgb(5%, 5%, 5%),
+            opacity:0.6*ent.opacity,
+            z: 1,
+        })
+    else:
+        drawCornerRect(
+            footPrint.pos - footPrint.size/2,
+            footPrint.size,
+            rgba(5%, 5%, 5%, 70%),
+            nil,
+            1
+        )

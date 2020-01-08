@@ -1,0 +1,222 @@
+let enemies = []
+let projectiles = []
+let wave_number_timer = nil
+
+// DEBUG
+const drawPath = true
+
+const LEVELS = [
+    // imp   // demonbrawl
+    [0,      10, ],
+    // [0,      0, ],
+    // [2,      0, ],
+    // [0,      1, ],
+    // [1,      0, ],
+    // [5,      2, ],
+    // [2,      5, ],
+]
+let curr_level = 0
+
+def update_scene():
+    if player_ent.health <= 0:
+        player_ent.kill(player_ent)
+
+    player_input(player_ent)
+    
+    for ent in enemies:
+        if ent.health <= 0 and not ent.is_dead:
+            ent.is_dead = true
+            ent.kill(ent)
+            continue
+
+        enemy_input(ent, player_ent)
+        enemy_update(ent)
+
+    // projectiles
+    let damagedByProjectiles = []
+    for i < size(projectiles):
+        const p = projectiles[i]
+        if (
+                --p.lifetime <= 0 
+                // a little ugly but OK.
+                or collide_map_rect(p.pos, p.size)
+        ):
+            fastRemoveKey(projectiles, i)
+            i--
+            continue
+
+        let collideEntities = [player_ent]
+        extend(collideEntities, enemies)
+        let removed = false
+        for ent in collideEntities:
+            if p.source_ent != ent and overlaps(p, ent):
+                fastRemoveKey(projectiles, i)
+                i--
+                removed = true
+
+                if not ent.invulnerable:
+                    if ent.hit_fn != nil:
+                        ent.hit_fn(p)
+                    ent.health -= p.source_ent.damage
+                    ent.force += 0.5 * p.source_ent.damage * entityMass(ent) * p.vel
+                    push(damagedByProjectiles, ent)
+                break
+
+        if removed:
+            continue
+
+        entitySimulate(p, 1)
+
+    const FLASH_DURATION = 40
+    for ent in damagedByProjectiles:
+        weapon_fx_flash(ent, FLASH_DURATION)
+        if ent == player_ent:
+            ent.invulnerable = true
+            def make_invul_end():
+                ent.invulnerable = false
+            addFrameHook(nil, make_invul_end, FLASH_DURATION)
+            shake_cam(1.0)
+
+def draw_scene():
+    // debug text is in screen space
+    preservingTransform:
+        resetTransform()
+        
+        // by default print the position, otherwise print the debug string
+        let tmp_debug_string = debug_string
+        if equivalent(tmp_debug_string, ""):
+            tmp_debug_string = unparse(floor(player_ent.pos))
+
+        drawText(
+            {
+                font:font,
+                text: tmp_debug_string,
+                pos: xy(0.5 * screenSize.x, 10),
+                color:textColor,
+                outline:textBorderColor,
+                xAlign: "center",
+                yAlign: "middle",
+                z: 100,
+            }
+        )
+
+    drawMap(arena)
+    drawEntity(player_ent)
+
+    // debug code -- for drawing the various colliders
+    // drawBounds(player_ent)
+    // drawBounds(player_ent.weapon_collider, rgb(0,1,0))
+    // drawBounds(player_ent.collider, rgb(1,0,0))
+    // drawBounds(get_footprint(player_ent), rgb(0,1,1))
+    // drawBounds(player_ent.movement_collider, rgb(0,0,1))
+    // let foot = get_footprint(player_ent)
+    draw_health_widget(player_ent)
+    draw_shadow(player_ent)
+
+    for ent in enemies:
+        // graphics stuff
+        if ent.do_draw:
+            drawEntity(ent)
+            drawBounds(ent)
+            draw_health_widget(ent)
+            draw_shadow(ent)
+            drawBounds(get_footprint(ent), rgb(0,1,1))
+
+        // debug
+        if drawPath and ent.curr_path:
+            // XXX make this a constant
+            const s = arena.spriteSize
+            for p in ent.curr_path:
+                drawCornerRect(p*s - ARENA_OFFSET, s, rgba(1, 0, 0, 20%))
+
+    // draw the wave number
+    if (
+            wave_number_timer != nil 
+            and modeFrames - wave_number_timer < WAVE_NUMBER_TIME
+    ):
+        drawSprite(
+            {
+                pos:xy(-48,-16),
+                sprite:bigtexturesSprite[curr_level][0],
+                opacity: lerp(
+                    1,0, (modeFrames-wave_number_timer)/WAVE_NUMBER_TIME
+                ),
+            }
+        )
+    else:
+        wave_number_timer = nil
+
+    for p in projectiles:
+        drawEntity(p)
+
+
+def reset_player():
+    player_ent = make_player()
+    player_ent.health = player_ent.max_health
+    sword = player_ent.sword
+
+def level_start():
+    curr_level = 0
+
+    // clear out the enemies array
+    enemies = []
+    projectiles = []
+    particles = []
+    debugPrint("LEVEL START: " + unparse(curr_level))
+
+    let dummy = make_teleport(make_dummy())
+    dummy.pos = xy(-40, -10)
+    push(enemies, dummy)
+    start_wave()
+
+// assumes curr_level < size(LEVELS)
+def start_wave():
+    debugPrint("Starting wave for: " + unparse(curr_level))
+    wave_number_timer = modeFrames
+
+    const enemiesForWave = LEVELS[curr_level]
+    spawn_enemies(enemiesForWave[0], enemiesForWave[1])
+    add_watch_wave_over()
+
+def spawn_enemies(nImps, nDemonBrawlers):
+    debugPrint("spawn", nImps, nDemonBrawlers)
+    for i < nImps:
+        let imp = make_teleport(make_imp())
+        let th = 2π * ((i + rnd() - 0.5) / nImps)
+        imp.pos = 100 * (1 - 0.3 *rnd()) * xy(cos th , sin th)
+        push(enemies, imp)
+
+    for i < nDemonBrawlers:
+        let db = make_teleport(make_demon_brawler())
+        let th = 2π * ((i + rnd() - 0.5) / nDemonBrawlers)
+        db.pos = 50 * (1 - 0.3 *rnd()) * xy(cos th , sin th)
+        push(enemies, db)
+
+let check_level_over_hook = nil
+def add_watch_wave_over():
+    def check_win():
+        // if all enemies are beaten
+        let round_won = true
+        for en in enemies:
+            if not en.is_dead:
+                round_won = false
+                break
+
+        if round_won:
+            debugPrint("round_won was true, ending round")
+            def win():
+                curr_level += 1
+                if curr_level >= size(LEVELS):
+                    setMode(victory)
+                else:
+                    // break period?
+                    start_wave()
+
+            removeFrameHook(check_level_over_hook)
+            addFrameHook(nil, win, 80)
+
+    def noop():
+        assert(true)
+
+    check_level_over_hook = addFrameHook(check_win, noop)
+

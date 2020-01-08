@@ -1,0 +1,80 @@
+init
+───────────────────────────────────────────────────────────
+let bgm_music = nil
+let score = 0
+
+// @TODO: use the reason to print a nice message about what happened
+
+enter(reason, score_val)
+───────────────────────────────────────────────────────────
+bgm_music = playAudioClip(die_bgm)
+removeFrameHooksByMode(Play)
+score = score_val
+debugPrint("died with score: " + unparse(score_val))
+
+frame
+───────────────────────────────────────────────────────────
+resetTransform()
+
+drawSprite(
+    {
+        pos:screenSize/2,
+        sprite:FAILED_screenSprite[0][0],
+    }
+)
+
+drawText(
+    {
+        font: font,
+        text: "SCORE: " + unparse(score),
+        pos: xy(screenSize.x/2, 174),
+        outline: rgb(0.984, 0, .027),
+        shadow: rgb(0.984, 0, .027),
+        xAlign: "center",
+    }
+)
+
+if modeFrames > 60:
+    if modeFrames mod 120 < 60:
+        drawText(
+            {
+                font:font, 
+                text:"PRESS ⓐ",
+                pos:xy(70, 194),
+                color:rgb(0.984, 0, .027),
+            }
+        )
+
+        drawText(
+            {
+                font:font, 
+                text:"PRESS ⓐ",
+                pos:xy(264, 194),
+                color:rgb(0.984, 0, .027),
+            }
+        )
+    else:
+        drawText(
+            {
+                font:font, 
+                text:"YOU GOT THIS",
+                pos:xy(50, 194),
+                color:rgb(0.984, 0, .027),
+            }
+        )
+
+        drawText(
+            {
+                font:font, 
+                text:"GO FOR IT",
+                pos:xy(254, 194),
+                color:rgb(0.984, 0, .027),
+            }
+        )
+
+    if joy.aa or joy.bb or joy.cc or joy.dd or joy.qq or joy.pp:
+        setMode(accel_test)
+
+leave
+───────────────────────────────────────────────────────────
+stopSound(bgm_music)

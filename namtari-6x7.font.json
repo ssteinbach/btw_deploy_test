@@ -1,0 +1,11 @@
+{
+    "url": "namtari-6x7.png",
+
+    "charSize": {"x": 8, "y": 8},
+
+    "letterSpacing": {"x" : 1, "y": 3},
+
+    "shadowSize": 1,
+
+    "baseline": 7
+}

@@ -1,0 +1,41 @@
+// raw position of the camera in world space coordinates
+let cam_pos = xy(0,0)
+// magnitude in pixels of the shake this frame
+let cam_shake = 0
+// amount the cam_shake gets lerped to zero each frame
+const cam_shake_approach_zero = 0.2
+
+def reset_camera():
+    cam_pos = xy(0, 0)
+    cam_shake = 0
+
+def clamp_position(pos):
+    let clamped_pos =  xy(
+        mid(-40, pos.x, 50),
+        mid(-25, pos.y, 150)
+    )
+
+    // this gives a little drift so it is dead even when its in the dead area
+    let result = (pos - clamped_pos)/3 + clamped_pos
+
+    return result
+
+def camera_update_frame():
+    // limit camera to center of screen-ish
+    let target_pos =  clamp_position(player_ent.pos)
+    let cam_goal = screenSize / 2 - target_pos
+       
+    let delta = xy(0, 0)
+    if cam_shake >= 1:
+        delta = cam_shake * random_dir()
+        cam_shake = lerp(cam_shake, 0, cam_shake_approach_zero)
+    else:
+        cam_shake = 0
+            
+    cam_pos = cam_pos + 0.1 * (cam_goal - cam_pos)
+    const cam_transform = cam_pos + delta
+    setTransform(cam_transform)
+
+def shake_cam(intensity):
+    cam_shake += intensity
+

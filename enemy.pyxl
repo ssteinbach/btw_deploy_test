@@ -1,0 +1,466 @@
+const EXPLOSION_PALETTE = [
+    // darkest
+    #792912,
+    #fd722f,
+    // hottest
+    #fbfd82,
+]
+
+def simulated_entities():
+    return concatenate(enemies, [player_ent])
+
+def enemy_explodes(enemy_ent):
+    // clear out the current action
+    enemy_ent.curr_action = nil 
+    // set the next action to exploding
+    push(enemy_ent.action_queue, clone(EXPLODE_ACTION))
+    // turn off the health bar
+    enemy_ent.hide_health_bar = true
+    // make it sideways
+    enemy_ent.angle = 90deg
+
+def do_explode(enemy_ent, actionState):
+    if enemy_ent.curr_action_frames < actionState.pre_explode:
+        let blink_time = actionState.pre_explode_tick
+        if enemy_ent.curr_action_frames mod blink_time < blink_time/2 :
+            enemy_ent.spriteOverrideColor = rgb(1,0,0)
+            actionState.pre_explode_tick /= 1.5 
+        else:
+            enemy_ent.spriteOverrideColor = nil
+
+        return
+
+    removeValues(enemies, enemy_ent)
+    shake_cam(30)
+
+    const origin = enemy_ent.pos
+    let positions = []
+    let ring=0
+    def explode(framesLeft, lifetime):
+        // graphics
+        ring=lerp(ring, 80, 0.1)
+        positions = []
+        if lifetime - framesLeft < 5:
+            shake_cam(10)
+        for i < 9:
+            push(positions, origin + (15 - i) * rndDir2D())
+        for i < size(positions):
+            drawDisk(
+                //loc
+                positions[i],
+                // radius
+                10,
+                // color
+                // EXPLOSION_PALETTE[floor(i/3)],
+                rgb(EXPLOSION_PALETTE[floor(i/3)]),
+                nil,
+                100
+            )
+        drawDisk(
+            origin,
+            ring,
+            nil,
+            rgb(EXPLOSION_PALETTE[(floor(lerp(0,2,framesLeft/lifetime)))]),
+            101
+        )
+
+        let vis_disk = {
+            pos:origin,
+            shape:"disk",
+            size:xy(80,80),
+            z:100,
+        }
+
+        // gameplay effect
+        if getMode() != Play:
+            return
+
+        let caught_in_explosion = []
+        for ent in simulated_entities():
+            if overlaps(ent, vis_disk): 
+                push(caught_in_explosion, ent)
+
+        for ent in caught_in_explosion:
+            hit_thing(enemy_ent, {current_damage:2}, ent, false)
+            ent.vel += 3*direction(ent.pos - origin)
+
+
+    addFrameHook(
+        // frame hook
+        explode,
+        // when hook is removed
+        nil,
+        // lifetime
+        80,
+        // 600
+    )
+
+const EXPLODE_ACTION = {
+    action: do_explode,
+    duration: 360,
+    sound: "explode",
+    pre_explode: 80,
+    pre_explode_tick: 60,
+}
+
+def fade_out(enemy_ent, actionState):
+    if enemy_ent.curr_action_frames < actionState.pre_fadeout:
+        return
+
+    let counter = enemy_ent.curr_action_frames - actionState.pre_fadeout
+
+    enemy_ent.opacity = lerp(1, 0, counter/(actionState.duration - actionState.pre_fadeout))
+
+    if enemy_ent.opacity < 0.1:
+        debugPrint("removing enemy")
+        removeValues(enemies, enemy_ent)
+
+
+
+const FADE_OUT_ACTION = {
+    action: fade_out,
+    duration: 240,
+    sound: "vanish",
+    pre_fadeout: 120,
+}
+
+
+def enemy_dies(enemy_ent):
+    if enemy_ent.gib_sprites:
+        for gib in enemy_ent.gib_sprites:
+            let chunk = makeEntity(
+                {
+                    sprite : gib,
+                    curr_action : clone(FADE_OUT_ACTION),
+                    do_draw: true,
+                    action_queue : [],
+                    curr_action_frames: 0,
+                    default_plan : [],
+                    is_dead : true,
+                    invulnerable : true,
+                    hide_health_bar : true,
+                    force : 2500*random_dir(),
+                    pos : enemy_ent.pos + 10 * random_dir(),
+                    angle : rnd()*360deg,
+                }
+            )
+            push(enemies, chunk)
+        removeValues(enemies, enemy_ent)
+        return
+
+    enemy_ent.angle = 90deg
+    
+    // can no longer hurt dead enemies
+    enemy_ent.is_dead = true
+    enemy_ent.invulnerable = true
+    enemy_ent.hide_health_bar = true
+
+    enemy_ent.curr_action = nil
+    enemy_ent.action_queue = []
+    push(enemy_ent.action_queue, clone(FADE_OUT_ACTION))
+
+const TELEPORT_COLORS = [
+    #0e1386,
+    #2ec2fa,
+    #0e1386,
+    #160953,
+    #0f0637,
+    #2449f9,
+    #0f0637,
+    #01001f,
+]
+
+def teleporting(ent, actionState):
+    ent.do_draw = false
+    ent.hittable = false
+
+    let spawn_time = false
+    for child in ent.teleporter.childArray:
+        let local_off = loop(
+            child.time_offset + floor(modeFrames/10),
+            size(TELEPORT_COLORS)
+        )
+        child.color_ind = loop(
+            local_off,
+            size(TELEPORT_COLORS)
+        )
+        child.spriteOverrideColor = TELEPORT_COLORS[child.color_ind]
+        child.current_radius = lerp(child.current_radius, 0, 0.03)
+        if child.current_radius < 1:
+            spawn_time = true
+        child.posInParent = polar_to_xy(
+            child.travel_angle,
+            child.current_radius
+        )
+        child.angleInParent = loop(
+            modeFrames/5 + child.start_angle,
+            360
+        )*1deg
+
+    entityUpdateChildren(ent)
+
+    drawEntity(ent.teleporter)
+
+    // done with teleport
+    if spawn_time:
+        debugPrint("should be done teleporting")
+        entityRemoveChild(ent, ent.teleporter)
+        ent.teleporter = nil
+        actionState.duration = -1
+        ent.do_draw = true
+        ent.hittable = true
+
+const TELEPORT_ACTION = {
+    action: teleporting,
+    duration: 180,
+    sound: "teleport",
+}
+
+def make_teleport(ent_to_teleport_in):
+    push(ent_to_teleport_in.action_queue, clone(TELEPORT_ACTION)) 
+    let children = {}
+    const NUM_TELEPORTYTHINGS = 3
+    const TELEPORT_ANGLE_OFF = 360/NUM_TELEPORTYTHINGS * 1deg
+    for i < NUM_TELEPORTYTHINGS:
+        let time_offset = rndInt(9)
+        let start_angle = rndInt(360) + 1deg 
+        let travel_angle = TELEPORT_ANGLE_OFF*i + rnd(40)-20 + 1deg
+        let current_radius = 40 + rnd(6) - 3
+        let color_ind = rndInt(size(TELEPORT_COLORS))
+        for ind < 3:
+            let border = 3 - ind
+            let name = "child_"+unparse(i)+ "_" + unparse(border)
+            let this_color = loop(color_ind + border, TELEPORT_COLORS)
+            children[name] =  makeEntity(
+                {
+                    // inputs
+                    travel_angle:travel_angle,
+                    current_radius:current_radius,
+                    color_ind: this_color,
+                    time_offset: time_offset + border,
+                    start_angle: start_angle,
+
+                    // computing these values
+                    angleInParent:start_angle,
+                    posInParent: polar_to_xy(travel_angle, current_radius),
+                    spriteOverrideColor:TELEPORT_COLORS[this_color],
+                    sprite:ent_to_teleport_in.sprite,
+                    scaleInParent:xy(1 + border/2, 1 + border/2),
+                }
+            )
+
+    let teleporter = makeEntity({}, children)
+
+    ent_to_teleport_in.teleporter = teleporter
+    entityAddChild(ent_to_teleport_in, ent_to_teleport_in.teleporter)
+
+    return ent_to_teleport_in
+
+def make_dummy():
+    return makeEntity(
+        {
+            sprite:dawnlike_npc_sprite[35][26],
+            scale: xy(1, 1),
+            // make this constant?
+            z:2,
+
+            vel: xy(0, 0),
+            force: xy(0, 0),
+
+            max_speed: 0,
+            damage: 0,
+            health: 5,
+            max_health: 5,
+
+            kill:enemy_explodes,
+            do_draw: true,
+            curr_action_frames: 0,
+
+            invulnerable: false,
+            isStunned: false,
+            is_dead: false,
+            action_queue: [],
+            default_plan: [
+                {
+                    action: enemy_action_stand,
+                    duration: 60,
+                },
+            ],
+        },
+        {
+            movement_collider: make_collider(xy(0, 3), xy(7,7)),
+            // @TODO: add a hitbox for the attacks
+            
+        }
+    )
+
+// Shoots projectiles at player that move slowly
+def make_imp():
+    return makeEntity(
+        {
+            sprite:dawnlike_npc_sprite[16][1],
+            // make this constant?
+            z:2,
+
+            scale: xy(1, 1),
+
+            vel: xy(0, 0),
+            force: xy(0, 0),
+
+            max_speed: 1,
+            damage: 3,
+            health: 20,
+            max_health: 20,
+
+            curr_path: nil,
+            kill:enemy_dies,
+            do_draw:true,
+
+            invulnerable: false,
+            isStunned: false,
+            is_dead: false,
+            curr_action_frames: 0,
+            curr_action: nil,
+            action_queue: [],
+            default_plan: [
+                {
+                    action: enemy_action_patrol,
+                    duration: 60,
+                    dir: xy(1, 0),
+                },
+            ],
+
+            attack_action: {
+                action: enemy_action_fireball,
+                duration: 60,
+                sound: "pew pew pew",
+            },
+        }
+    )
+
+// Middle of the road movement, lots of health, melee attack
+def make_demon_brawler():
+    return makeEntity(
+        {
+            sprite:zombie_bigmouth_animSprite[0][0],
+
+            // make this constant?
+            z:2,
+
+            base_sprite:zombie_bigmouth_animSprite[0][0],
+            stunned_sprite:zombie_bigmouth_animSprite[1][2],
+            walking_sprites: [
+                zombie_bigmouth_animSprite[0][1],
+                zombie_bigmouth_animSprite[1][1],
+            ],
+            windup_sprite: zombie_bigmouth_animSprite[0][3],
+            attack_sprite: zombie_bigmouth_animSprite[1][3],
+
+            gib_sprites: [
+                zombie_bigmouth_animSprite[0][4],
+                zombie_bigmouth_animSprite[1][4],
+                zombie_bigmouth_animSprite[1][4],
+                zombie_bigmouth_animSprite[0][5],
+                zombie_bigmouth_animSprite[0][5],
+                zombie_bigmouth_animSprite[1][5],
+            ],
+
+            scale: 150% * xy(1, 1),
+
+            vel: xy(0, 0),
+            force: xy(0, 0),
+
+            curr_path: nil,
+            kill:enemy_dies,
+            do_draw:true,
+
+            max_speed: 3,
+            damage: 3,
+            health: 9,
+            max_health: 9,
+
+            invulnerable: false,
+            isStunned: false,
+            is_dead: false,
+            curr_action_frames: 0,
+            curr_action: nil,
+            action_queue: [],
+            default_plan: [
+                {
+                    action: enemy_action_patrol,
+                    duration: 60,
+                    dir: xy(1, 0),
+                },
+            ],
+            attack_action: {
+                action: enemy_action_melee,
+                duration: 40,
+            }
+        },
+        {
+            movement_collider: make_collider(xy(0, 12), xy(10,7)),
+            // @TODO: add a hitbox for the attacks
+        }
+    )
+
+def enemy_input(ent):
+    // Each enemy has a current plan.  they will exhaust that.  
+    // Each enemy has a "default" plan.
+
+    // if there aren't any actions in the queue
+    if size(ent.action_queue) == 0:
+        // add the default action
+        for a in ent.default_plan:
+            push(ent.action_queue, clone(a))
+
+    // if they don't have a thing they're doing at the moment
+    if not ent.curr_action:
+        debugPrint("setting action: " + unparse(ent.curr_action))
+        ent.curr_action = popFront(ent.action_queue)
+
+    // run the current action
+    ent.curr_action.action(ent, ent.curr_action)
+    
+    ent.curr_action_frames += 1
+    if ent.curr_action_frames >= ent.curr_action.duration:
+        // debugPrint("clearning action: " + unparse(ent.curr_action))
+        ent.curr_action = nil
+        ent.curr_action_frames = 0
+
+def enemy_update(ent):
+    const ARENA_GROUND_FRICTION = 15%
+    const drag = (ARENA_GROUND_FRICTION * -ent.vel * entityMass(ent))
+    ent.force += drag
+    let lastPos = clone(ent.pos)
+
+    // check to see if there is an overlap
+    let curr_footprint = get_footprint(ent)
+    let coll_en = collide_enemy_rect(curr_footprint.pos, curr_footprint.size, ent)
+    // if coll_en != nil:
+        // ent.force += 0.1*direction(coll_en.pos - ent.pos)
+
+    entitySimulate(ent, 1)
+    ent.pos = get_collide_pos(ent, lastPos)
+    entityUpdateChildren(ent)
+
+
+
+// return a list of mapCoords to get from ent to target.
+// this is unused currently
+def enemy_find_path(ent, target):
+    def to_mapCoord(e):
+        // TODO get sprite size from map
+        return (e.pos + ARENA_OFFSET)/arena.spriteSize
+    // get the map tile we're in
+    // get the map tile we want to get to
+    // given the state of the world, find a path
+    const start = to_mapCoord(ent)
+    const goal = to_mapCoord(target)
+
+    def arena_edge_cost(a, b, m):
+        if arena_sprite_is_wall(getMapSprite(arena, b)):
+            return infinity
+        return 1
+        
+    return findMapPath(arena, start, goal, arena_edge_cost)
+

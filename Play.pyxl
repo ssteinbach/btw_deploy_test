@@ -1,0 +1,27 @@
+init
+───────────────────────────────────────────────────────────
+const drawPath = true
+
+let bgm_music = nil
+
+enter
+───────────────────────────────────────────────────────────
+bgm_music = playAudioClip(play_bgm)
+reset_player()
+level_start()
+reset_camera()
+
+frame
+───────────────────────────────────────────────────────────
+
+// updates
+camera_update_frame()
+update_scene()
+particle_update()
+
+// draw
+draw_scene()
+
+leave
+───────────────────────────────────────────────────────────
+stopSound(bgm_music)

@@ -1,0 +1,63 @@
+init
+───────────────────────────────────────────────────────────
+let bgm_music = nil
+
+enter
+───────────────────────────────────────────────────────────
+bgm_music = playAudioClip(win_bgm)
+removeFrameHooksByMode(Play)
+
+frame
+───────────────────────────────────────────────────────────
+resetTransform()
+
+drawSprite(
+    {
+        pos:screenSize/2,
+        sprite:victorySprite[0][0],
+    }
+)
+
+if modeFrames mod 120 < 60:
+    drawText(
+        {
+            font:font, 
+            text:"PRESS ⓐ",
+            pos:xy(70, 194),
+            color:rgb(0.984, 0, .027),
+        }
+    )
+
+    drawText(
+        {
+            font:font, 
+            text:"PRESS ⓐ",
+            pos:xy(264, 194),
+            color:rgb(0.984, 0, .027),
+        }
+    )
+else:
+    drawText(
+        {
+            font:font, 
+            text:"AMAZING",
+            pos:xy(50, 194),
+            color:rgb(0.984, 0, .027),
+        }
+    )
+
+    drawText(
+        {
+            font:font, 
+            text:"TRY AGAIN!",
+            pos:xy(254, 194),
+            color:rgb(0.984, 0, .027),
+        }
+    )
+
+if joy.aa or joy.bb or joy.cc or joy.dd or joy.qq or joy.pp:
+    setMode(Play)
+
+leave
+───────────────────────────────────────────────────────────
+stopSound(bgm_music)

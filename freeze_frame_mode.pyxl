@@ -1,0 +1,23 @@
+// this mode just holds the rendering for a bit then returns
+if freeze_frames <= 0:
+    freeze_frames = 0
+    popMode()
+
+freeze_frames -= 1
+
+// XXX this feels super janky, probably shoud be able to draw the scene without
+// duplicating code
+preservingTransform:
+    resetTransform()
+    drawText(
+        {
+            font:font,
+            text: unparse(player_ent.pos),
+            pos: xy(0.5 * screenSize.x, 10),
+            color:textColor,
+            yAlign: "middle"
+        }
+    )
+
+// draw the scene (but don't update it)
+draw_scene()

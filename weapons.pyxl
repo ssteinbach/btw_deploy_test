@@ -1,0 +1,113 @@
+def polar_to_xy(angle, radius=1):
+    return xy(radius * cos(angle), radius * sin(angle))
+
+def deg(num):
+    return (num * 1deg)
+
+const DUST_ANGLE_MAP = {
+    "LEFT":-30,
+    "RIGHT":-30+180,
+    "UP":-30+90,
+    "DOWN":-30-90,
+}
+
+let freeze_frames = 0
+
+def freeze_frame(len):
+    freeze_frames = len
+    pushMode(freeze_frame_mode, "freeze_frame_damage")
+
+def hit_thing(from_ent, weap, hit_things, add_freeze_frame=true):
+
+    let cam_shakes = 0
+
+    for to_ent in hit_things:
+        // then add damage fx
+        // add some physical impulse
+        const from_to_to = from_ent.scale * (to_ent.pos - from_ent.pos)
+        const hit_dir = direction(from_to_to)
+        to_ent.force += 2 * entityMass(from_ent) * hit_dir
+        let hitLoc = from_ent.pos + 0.5 * from_to_to
+        let splatterDir = -perp(hit_dir)
+
+        if to_ent.hide_health_bar:
+            continue
+
+        to_ent.health -= weap.current_damage
+
+        weapon_fx_splatter(hitLoc, splatterDir)
+        const FLASH_DURATION = 30
+        weapon_fx_flash(to_ent, FLASH_DURATION)
+        to_ent.isStunned = true
+        if to_ent.stunned_sprite:
+            to_ent.sprite=to_ent.stunned_sprite
+
+        def unstun_callback():
+            to_ent.isStunned = false
+            if to_ent.base_sprite:
+                to_ent.sprite = to_ent.base_sprite
+        addFrameHook(nil, unstun_callback, FLASH_DURATION)
+
+        cam_shakes += 1
+
+    if cam_shakes > 0:
+        shake_cam(6*cam_shakes)
+
+    if add_freeze_frame:
+        freeze_frame(5)
+
+def rnd_off(mag, centered):
+    let result = xy(rnd(mag), rnd(mag))
+    if centered:
+        result -= xy(mag/2, mag/2)
+    return result
+
+def sword_swing(player_ent):
+    if sword.swinging:
+        return
+
+    with sword, orientation, hand in player_ent:
+        hand.angleInParent += 60deg
+        sword.swinging = true
+
+        const dust_root = clone(player_ent.pos)
+
+        let j = deg(DUST_ANGLE_MAP[orientation])
+        for i < 60:
+            j += 1deg
+            let dust_pos = polar_to_xy(j, player_ent.scale.x*18)
+            let scale = (60-i)/12
+            push(
+                particles,
+                {
+                    pos: dust_root - dust_pos,
+                    vel: xy(0,0),
+                    lifetime:30,
+                    color:#1693ff,
+                    size:xy(scale, scale),
+                    z:1,
+                }
+            )
+
+        player_ent.vel += PLAYER_MAX_SPEED*player_ent.forward_dir
+
+        def reset_swing():
+            hand.angleInParent -= 60deg
+            sword.swinging = false
+
+        addFrameHook(
+            nil,
+            reset_swing,
+            30
+        )
+
+        entityUpdateChildren(player_ent)
+        let hit_things = []
+        for en in enemies:
+            if (
+                    en.hittable 
+                    and overlaps(en, player_ent.orientation_pivot.collider)
+            ):
+                push(hit_things,en)
+
+        hit_thing(player_ent, sword, hit_things)

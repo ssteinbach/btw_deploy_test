@@ -1,0 +1,113 @@
+def random_dir():
+    const th = 2π rnd()
+    return xy(cos th, sin th)
+
+def enemy_action_stand(ent, actionState):
+    return
+
+def enemy_action_patrol(ent, actionState):
+    if ent.isStunned:
+        return
+
+    if magnitude(ent.vel) > 0:
+        if ent.walking_sprites:
+            ent.sprite = ent.walking_sprites[
+                (floor(modeFrames / 8) mod size(ent.walking_sprites))
+            ]
+
+    let myForce = xy(0, 0)
+    if ent.curr_action_frames <= 0:
+        myForce = ent.max_speed * actionState.dir * entityMass(ent)
+        // XXX(edluong): WBN to use apply_orientation
+        /*
+        if actionState.dir.x < 0:
+            ent.scale.x = abs(ent.scale.x)
+        else:
+            ent.scale.x = -abs(ent.scale.x)
+            */
+
+        const random_walk = clone(actionState)
+        random_walk.dir = random_dir()
+        push(ent.action_queue, random_walk)
+
+    for playerEnt in [player_ent]:
+        if magnitude(ent.pos - playerEnt.pos) <= 100:
+            // have the agent "stop" by removing any
+            // added force
+            myForce = xy(0, 0)
+            // XXX(edluong): shorten the duration of the current
+            // action
+            resize(ent.action_queue, 0)
+            if ent.attack_action:
+                const attack_action = clone(ent.attack_action)
+                attack_action.target = playerEnt
+                push(ent.action_queue, attack_action)
+
+    if magnitude(myForce) >= 0:
+        ent.offset.y = 2*abs(sin (ent.curr_action_frames / 8))
+    ent.force += myForce
+
+def enemy_action_fireball(ent, actionState):
+    if ent.isStunned:
+        return
+
+    ent.offset.y = 0
+    if ent.curr_action_frames mod 10 ==  0:
+        if not actionState.dir:
+            actionState.dir = direction(
+               actionState.target.pos - ent.pos)
+        
+        push(projectiles, makeEntity({
+            pos: clone(ent.pos),
+            z: 5,
+            sprite:dawnlike_npc_sprite[31][14],
+            scale: 50% xy(1,1),
+            vel: 2 * actionState.dir,
+            lifetime: 100,
+            source_ent: ent,
+        }))
+
+// treats the melee as just a near by melee attack
+def enemy_action_melee(ent, actionState):
+    if ent.isStunned:
+        return
+
+    ent.offset.y = 0
+    let toTarget = actionState.target.pos - ent.pos
+    const distToTarget = magnitude(toTarget)
+    
+    const ATTACK_DIST = 25
+
+    if ent.base_sprite:
+        ent.sprite = ent.base_sprite
+
+    if ent.curr_action_frames < 15:
+        if ent.windup_sprite:
+            ent.sprite = ent.windup_sprite
+    else:
+
+        if ent.curr_action_frames <= 30 and distToTarget > ATTACK_DIST:
+            actionState.dir = direction(toTarget)
+            let myForce = 10% * ent.max_speed * actionState.dir * entityMass(ent)
+            ent.force += myForce
+            if ent.attack_sprite:
+                ent.sprite = ent.attack_sprite
+
+
+        if (ent.curr_action_frames >= 45 and 
+            ent.curr_action_frames mod 5 == 0):
+            
+            if not actionState.dir:
+                actionState.dir = direction(toTarget)
+
+            if magnitude(toTarget) <= ATTACK_DIST:
+                push(projectiles, makeEntity({
+                    pos: ent.pos + 50% magnitude(ent.size) * actionState.dir,
+                    z: 5,
+                    sprite:dawnlike_npc_sprite[29][16],
+                    scale: 100% xy(1,1),
+                    vel: 0.2 * actionState.dir,
+                    lifetime: 30,
+                    source_ent: ent,
+                }))
+

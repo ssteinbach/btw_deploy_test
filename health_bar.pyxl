@@ -1,0 +1,28 @@
+def draw_health_widget(ent):
+    let over_color = ent.spriteOverrideColor
+
+    if ent.hide_health_bar:
+        return
+
+    with health, pos, max_health in ent:
+        // @TODO: this is still pretty CBB for the big character
+        const root = pos - xy(-2+(max_health + 2)/2,  ent.scale.y*ent.sprite.size.y-4*ent.scale.y)
+
+        let bar_col = over_color or lerp(rgb(1,0,0),rgb(0,1,0),health/max_health)
+        let border_col = over_color or rgb(0,0,0)
+
+        drawCornerRect(
+            root,
+            xy(health, 3),
+            bar_col,
+            nil,
+            10
+        )
+        drawCornerRect(
+            root + xy(-1,-1),
+            xy(max_health+2, 5),
+            border_col,
+            nil,
+            9
+        )
+
