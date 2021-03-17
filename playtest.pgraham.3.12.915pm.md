@@ -1,0 +1,22 @@
+philip graham playtest:
+- had no background in roguelikes or into the breach...
+- so... trying to figure out what is a move, what is an attack
+- had to talk through the basics
+- enemies should be grayed out or just shapes or something while they are below the line so they are obviously different
+- all enemies are landing on a single line
+- descriptions should include the damage for attacks
+- need more consistent sprinkling of helps in the glue
+- probably your guys should get "pushed" forward by the scroll at the top rather than die, unless they can't move into the next tile
+- line needs to be more obvious - what is in play vs up next
+
+- mountain upside down j starting tiles the bottom two helps should be lower (below the line, I'd say)
+- rename launch
+- add a button to the game over screen to restarting
+- other upside down js mountain map has a spot where the enemy goes that is always a lame move on the firs turn 
+- enemy spawned on top of help, which kills the help for some reason and does damage to the player
+- if an enemy dies from the attack, they don't push into stuff
+- mountain should go onto the mage... and maybe not hit any distance?
+- two mountains template needs more helps
+- melee character shouldn't have mountain, so the trade off is between mountain and launch
+- in general more water along the edges would be good
+- hint for your attacks are the same as the hints for the enemy attacks (the dots)
