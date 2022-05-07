@@ -1,0 +1,279 @@
+Play
+════════════════════════════════════════════════════════════════════════
+let next_blink = DATA.face.eye.blink_time
+const BODY_SPRITE = palette_sprite[0][0]
+const FOLLOW_MOUSE = DATA.debug.follow_mouse 
+
+const ORBIT_RADIUS = DATA.orbit_radius
+const ORBIT_SPEED = DATA.orbit_speed
+const FAST_SCALE = DATA.fast_scale
+
+const FAST_LERP_AMOUNT = DATA.speed.fast
+const SLOW_LERP_AMOUNT = DATA.speed.slow
+
+const BG_COLOR = rgba(DATA.colors.BG_rgba)
+const BODY_COLOR = rgba(DATA.colors.BODY_rgba)
+
+const SLOW_WEIGHT = DATA.slow_weight
+const FAST_WEIGHT = DATA.fast_weight
+
+const THRESHOLD = DATA.threshold/size(DATA.start_loc)
+
+const DEBUG_DRAW_TARGETS = DATA.debug.draw_targets
+
+def ndc_to_pixel(ndc):
+    return xy(SCREEN_SIZE.x*ndc.x, SCREEN_SIZE.y*ndc.y) - SCREEN_SIZE/2
+
+const positions_raw = []
+const positions_fast_raw = []
+const positions = []
+const positions_fast = []
+for p in DATA.start_loc:
+    push(positions_raw, ndc_to_pixel(xy(p[0], p[1])))
+    push(positions_fast_raw, ndc_to_pixel(xy(p[0], p[1])))
+    push(positions, xy(0, 0))
+    push(positions_fast, xy(0, 0))
+const npos = size(positions_raw)
+
+set_background(BG_COLOR)
+
+
+const targets = []
+for p < size(DATA.start_loc):
+    push(targets, SCREEN_SIZE/2)
+
+const HALF_SS = xy(SCREEN_SIZE/2)
+let target = xy(HALF_SS)
+let target_fast = xy(HALF_SS)
+
+// @{ pose lib
+const POSE_DEFAULT = DATA.poses.default_
+const POSE_SQUINT = DATA.poses.squint
+const POSE_EXPAND = DATA.poses.expand
+
+def clone_pose(pose_to_clone):
+    return {
+        radius: clone(pose_to_clone.radius),
+        spread: clone(pose_to_clone.spread),
+        eye_alpha: clone(pose_to_clone.eye_alpha),
+        mouth_alpha: clone(pose_to_clone.mouth_alpha),
+        // transition speed is not lerped
+        // transition_speed: clone(pose_to_clone.transition_speed),
+        eye_height_scale: clone(pose_to_clone.eye_height_scale),
+        eye_lerp_center_to_pt: clone(pose_to_clone.eye_lerp_center_to_pt),
+    }
+
+let current_pose = clone_pose(POSE_DEFAULT)
+let target_pose = POSE_DEFAULT
+
+def lerp_pose(current, target):
+    current.radius = LERP(current.radius, target.radius, target.transition_speed)
+    current.spread = LERP(current.spread, target.spread, target.transition_speed)
+    current.eye_alpha = LERP(current.eye_alpha, target.eye_alpha, target.transition_speed)
+    current.mouth_alpha = LERP(current.mouth_alpha, target.mouth_alpha, target.transition_speed)
+    current.eye_height_scale = LERP(current.eye_height_scale, target.eye_height_scale, target.transition_speed)
+    current.eye_lerp_center_to_pt = LERP(current.eye_lerp_center_to_pt, target.eye_lerp_center_to_pt, target.transition_speed)
+    return current
+// @}
+
+const SLOW_RADIUS_MULT = DATA.sdf_radius.slow_multiplier
+
+def ball_sdf(ball_pos, pos): 
+    const x = SUB(ball_pos.x, pos.x)
+    const y = SUB(ball_pos.y, pos.y)
+    return DIV(current_pose.radius, sqrt(MAD(x, x, MUL(y, y))))
+
+
+const TEXT_COLOR = rgba(DATA.colors.TEXT_NORMAL_rgba)
+const ACTIVE_COLOR = rgba(DATA.colors.TEXT_ACTIVE_rgba)
+
+const text = replace(
+    (
+        "(a): squint" 
+        + "  (b): expand \n" 
+        + "[<][v][^][>]: move lower right gloop"
+    ),
+    gamepad_array[0].prompt
+)
+
+// temporary variable
+const ORIGIN = xy(0,0)
+let p = xy(0,0)
+
+frame
+────────────────────────────────────────────────────────────────────────
+
+
+if gamepad_array[0].a:
+    target_pose = POSE_SQUINT
+else if gamepad_array[0].b:
+    target_pose = POSE_EXPAND
+else:
+    target_pose = POSE_DEFAULT
+
+current_pose = lerp_pose(current_pose, target_pose)
+const current_radius = current_pose.radius
+const current_spread = current_pose.spread
+const current_eye_alpha = current_pose.eye_alpha
+const current_mouth_alpha = current_pose.mouth_alpha
+const current_eye_height_scale = current_pose.eye_height_scale
+const current_eye_lerp_center_to_pt = current_pose.eye_lerp_center_to_pt
+debug_watch(current_pose)
+
+draw_text(
+    font,
+    text,
+    xy(SCREEN_SIZE.x/2, SCREEN_SIZE.y - 10),
+    TEXT_COLOR,
+    nil,
+    nil,
+    "center",
+    "bottom",
+    0, 
+    nil, 
+)
+
+const mstate = device_control("get_mouse_state")
+const mpos = if FOLLOW_MOUSE then xy(mstate.x, mstate.y) else SCREEN_SIZE/2
+XY_LERP(target, mpos, SLOW_LERP_AMOUNT, target)
+XY_LERP(target_fast, mpos, FAST_LERP_AMOUNT, target_fast)
+const target_diff = target_fast - target
+const distance = min(FAST_SCALE*current_radius, magnitude(target_diff))
+target_fast = distance * direction(target_diff) + target
+
+let min_p = xy(0,0)
+let max_p = xy(0,0)
+positions_raw[3] += joy.xy
+positions_fast_raw[3] += joy.xy
+for p_raw at index in positions_raw:
+    const angle = MUL(ORBIT_SPEED, MUL(MUL(mode_frames, index), 1/120))
+    XY_LERP(p_raw, ORIGIN, SLOW_RADIUS_MULT+current_spread, p)
+    positions[index].x = MAD(ORBIT_RADIUS, sin(angle), ADD(p.x, target.x))
+    positions[index].y = MAD(ORBIT_RADIUS, cos(angle), ADD(p.y, target.y))
+    if DEBUG_DRAW_TARGETS:
+        draw_disk(positions[index], 5, rgb(1,0,0),nil, 10)
+
+    const n_p = -1*positions[index]
+    min_p.x = MIN(min_p.x, n_p.x)
+    min_p.y = MIN(min_p.y, n_p.y)
+    max_p.x = MAX(max_p.x, n_p.x)
+    max_p.y = MAX(max_p.y, n_p.y)
+    if DEBUG_DRAW_TARGETS:
+        draw_disk(target, 5, rgb(1,1,0),nil, 10)
+
+for p_raw at index in positions_fast_raw:
+    const angle = MUL(MUL(mode_frames, index), 1/120)
+    XY_LERP(p_raw, ORIGIN, current_spread, p)
+    positions_fast[index].x = MAD(ORBIT_RADIUS, sin(angle), ADD(p.x, target_fast.x))
+    positions_fast[index].y = MAD(ORBIT_RADIUS, cos(angle), ADD(p.y, target_fast.y))
+    if DEBUG_DRAW_TARGETS:
+        draw_disk(positions_fast[index], 5, rgb(1,0,0),nil, 10)
+min_p -= 2.5*xy(current_radius, current_radius)
+max_p += 2.5*xy(current_radius, current_radius)
+
+// metaballs
+let pos = xy(0, 0)
+for y < SCREEN_SIZE.y:
+    pos.y = y
+    for x < SCREEN_SIZE.x:
+        pos.x = x
+        if (
+                ADD(
+                    // original ("slow")
+                    MUL(
+                        SLOW_WEIGHT,
+                        ADD(
+                            ADD(
+                                ADD(
+                                    ball_sdf(positions[0], pos),
+                                    ball_sdf(positions[1], pos)
+                                ),
+                                ball_sdf(positions[2], pos)
+                            ),
+                            ball_sdf(positions[3], pos)
+                        )
+                    ),
+                    // fast
+                    MUL(
+                        FAST_WEIGHT,
+                        ADD(
+                            ADD(
+                                ADD(
+                                    ball_sdf(positions_fast[0], pos),
+                                    ball_sdf(positions_fast[1], pos)
+                                ),
+                                ball_sdf(positions_fast[2], pos)
+                            ),
+                            ball_sdf(positions_fast[3], pos)
+                        )
+                    )
+                )
+                > THRESHOLD):
+            draw_point(pos, BODY_SPRITE)
+
+if DATA.debug.draw_face:
+    const FACE = DATA.face
+    const spread = 1 - current_spread
+
+    let total = xy(0,0)
+    for pt in positions_fast:
+        total += pt
+    const face_center = total / size(positions_fast)
+
+    const l_eye_loc = lerp(
+        face_center + spread* xy(FACE.eye.separation, -10),
+        positions_fast[1],
+        min(current_eye_lerp_center_to_pt, 1)
+    )
+    const r_eye_loc = lerp(
+        face_center + spread* xy(-FACE.eye.separation, -10),
+        positions_fast[0],
+        min(current_eye_lerp_center_to_pt, 1)
+    )
+    const EYE_COLOR = rgba(rgb(FACE.eye.color), current_eye_alpha)
+
+    if next_blink == mode_frames:
+        next_blink = (
+            mode_frames 
+            + FACE.eye.blink_time 
+            + floor(FACE.eye.blink_randomness * random())
+        )
+    else if mode_frames > next_blink - FACE.eye.blink_dur:
+        draw_line(
+            l_eye_loc - xy(FACE.eye.radius/2, 0),
+            l_eye_loc + xy(FACE.eye.radius/2, 0),
+            EYE_COLOR
+        )
+        draw_line(
+            r_eye_loc - xy(FACE.eye.radius/2, 0),
+            r_eye_loc + xy(FACE.eye.radius/2, 0),
+            EYE_COLOR
+        )
+    else:
+        draw_sprite(oooo_eye_sprite, l_eye_loc, 0, xy(1,current_eye_height_scale), current_eye_alpha)
+        draw_sprite(oooo_eye_sprite, r_eye_loc, 0, xy(1,current_eye_height_scale), current_eye_alpha)
+        // draw_disk(l_eye_loc, FACE.eye.radius, EYE_COLOR)
+        // draw_disk(r_eye_loc, https://www.imdb.com/title/tt0060802/DATA.face.eye.radius, EYE_COLOR)
+
+    const mouth_center = face_center + xy(FACE.mouth.offset)
+    const MOUTH_COLOR = rgba(rgb(FACE.mouth.color), current_mouth_alpha)
+    // draw_disk(mouth_center, FACE.mouth.length, rgba(FACE.mouth.color))
+    // draw_disk(mouth_center+xy(0, -10), FACE.mouth.length, BODY_COLOR)
+    draw_line(
+        mouth_center - spread*xy(FACE.mouth.length/2,0),
+        mouth_center + spread*xy(FACE.mouth.length/2,0),
+        MOUTH_COLOR,
+        0,
+        3
+    )
+    draw_line(
+        mouth_center - spread*xy(FACE.mouth.length/2,3),
+        mouth_center - spread*xy(FACE.mouth.length/2,3)- xy(3, 0),
+        MOUTH_COLOR,
+        0,
+        3
+    )
+
+debug_watch(next_blink)
+debug_watch(next_blink - DATA.face.eye.blink_dur)
+debug_watch(mode_frames)

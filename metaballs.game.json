@@ -1,0 +1,67 @@
+{
+    "achievements": false,
+    "assets": {
+        "font": "quad://fonts/deja-7.font.json",
+        "oooo_eye_sprite": "oooo_eye.sprite.json",
+        "palette_sprite": "palette.sprite.json"
+    },
+    "competitive": false,
+    "constants": {
+        "ACTIVE_COLOR": {
+            "type": "rgb",
+            "value": {
+                "b": {
+                    "type": "number",
+                    "value": 0.2
+                },
+                "g": {
+                    "type": "number",
+                    "value": 0.2
+                },
+                "r": {
+                    "type": "number",
+                    "value": 0.8
+                }
+            }
+        },
+        "DATA": {
+            "type": "raw",
+            "url": "start_pos.yml"
+        },
+        "TEXT_COLOR": {
+            "type": "rgb",
+            "value": {
+                "b": {
+                    "type": "number",
+                    "value": 0.8
+                },
+                "g": {
+                    "type": "number",
+                    "value": 0.2
+                },
+                "r": {
+                    "type": "number",
+                    "value": 0.2
+                }
+            }
+        }
+    },
+    "cooperative": false,
+    "copyright": "\u00a92021 Your Name Here",
+    "description": "Description of your game in about 100 characters.",
+    "developer": "Your Name Here",
+    "docs": [],
+    "highscores": false,
+    "license": "CC0/Public Domain (Replace with your own license)",
+    "max_players": 1,
+    "min_players": 1,
+    "modes": [
+        "Play"
+    ],
+    "packages": [],
+    "screenshot_tag": "metaballs",
+    "scripts": [],
+    "start_mode": "Play",
+    "title": "metaballs",
+    "version": 0
+}

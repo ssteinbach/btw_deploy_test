@@ -1,0 +1,7 @@
+// radius of SDF in pixels
+let METABALLS_RADIUS_px = 15
+
+def METABALLS_sdf(ball_pos_xy, pos): 
+    const x = SUB(ball_pos_xy.x, pos.x)
+    const y = SUB(ball_pos_xy.y, pos.y)
+    return DIV(METABALLS_RADIUS_px, sqrt(MAD(x, x, MUL(y, y))))

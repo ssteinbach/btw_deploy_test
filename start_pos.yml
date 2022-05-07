@@ -1,0 +1,79 @@
+poses:
+  # the _ is because `default` is a keyword in pyxl
+  default_:
+    radius: 12
+    spread: 0
+    transition_speed: 0.15
+    eye_alpha: 1
+    eye_height_scale: 1
+    eye_lerp_center_to_pt: 0.25
+    mouth_alpha: 1
+  squint:
+    radius: 7
+    spread: 0.6
+    transition_speed: 0.15
+    eye_alpha: 1
+    eye_height_scale: 0.6
+    eye_lerp_center_to_pt: 0
+    mouth_alpha: -1
+  expand:
+    radius: 15
+    spread: -4.5 
+    transition_speed: 0.05
+    eye_alpha: -1
+    eye_height_scale: 1
+    eye_lerp_center_to_pt: 3
+    mouth_alpha: -3
+
+colors:
+  BG_rgba: [0.8,0.8,0.8,1]
+  BODY_rgba: [0.04,.2666667,.65,1]
+  TEXT_NORMAL_rgba: [0.2,0.2,0.8,1]
+  TEXT_ACTIVE_rgba: [0.8,0.2,0.2,1]
+
+sdf_radius: 
+  slow_multiplier: 0.25
+
+threshold: 7
+orbit_radius: 7
+orbit_speed: 4
+
+fast_scale: 4.5
+
+fast_weight: 1
+slow_weight: 0.35
+
+speed:
+  fast: 0.1
+  slow: 0.05
+
+# in ndc
+start_loc:
+  # left top
+  - [0.47, 0.45]
+  # right top
+  - [0.53, 0.45]
+  # left bottom
+  - [0.45, 0.55]
+  # right bottom
+  - [0.55, 0.55]
+
+face:
+  eye:
+    separation: 14
+    height: 10
+    radius: 7
+    color: (0,0,0,1)
+    blink_dur: 6
+    blink_time: 60
+    blink_randomness: 180
+  mouth:
+    length: 40
+    offset: [0, 10]
+    color: (0,0,0,1)
+
+
+debug:
+  follow_mouse: true
+  draw_targets: false
+  draw_face: true
